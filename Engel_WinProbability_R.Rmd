@@ -1,0 +1,197 @@
+---
+title: "Win Probability Model"
+author: "Engel, Alec"
+date: "7/26/2021"
+output: word_document
+---
+
+```{r include=FALSE}
+library(tidyverse)
+library(esquisse)
+```
+
+```{r include=FALSE}
+pbp2018 = readRDS(gzcon(url(
+"https://github.com/guga31bb/nflfastR-data/blob/master/data/play_by_play_2018.rds?raw=true")))
+pbp2019 = readRDS(gzcon(url(
+"https://github.com/guga31bb/nflfastR-data/blob/master/data/play_by_play_2019.rds?raw=true")))
+pbpfull = bind_rows(pbp2018,pbp2019)
+rm(pbp2018, pbp2019)
+```
+
+```{r}
+pbpfull <- pbpfull %>% 
+  mutate(winteam = ifelse(result > 0,home_team, ifelse(result<0,away_team,"tie")))
+```
+
+```{r}
+pbpfull <- pbpfull %>%
+  mutate(poswins = ifelse(winteam == posteam,"PosWins", "PosLoses"))
+```
+
+```{r}
+pbpfull <- pbpfull %>%
+  mutate(poswins = fct_relevel(poswins, "PosLoses"))
+```
+
+```{r}
+pbpfull <- pbpfull %>%
+  mutate(posspread = ifelse(posteam == home_team, spread_line, -1*spread_line))
+```
+
+```{r}
+cols = c("qtr","down","poswins")
+pbpfull = pbpfull %>% mutate_at(cols,as_factor)
+```
+
+```{r}
+pbpfull = pbpfull %>% drop_na(yardline_100,game_seconds_remaining,down,posspread,score_differential)
+```
+
+```{r}
+pbpfull = pbpfull %>% filter(qtr != 5)
+```
+
+```{r}
+pbpfull = pbpfull %>% filter(winteam != "tie")
+```
+
+```{r}
+mod1 = glm(poswins ~ yardline_100 + game_seconds_remaining + down +
+ydstogo + posspread + score_differential, data = pbpfull, family = "binomial")
+options(scipen = 999)
+summary(mod1)
+```
+
+This looks to be a strong model with all predictors except for game_seconds_remaining being statistically significant. We can see that as posspread and score_differential increases, the probability of the team in possession winning also increases. It also makes sense that as yardage, game time and downs decrease, the probability of the team in possession in winning decreases because that team with posession may be running out of time, being backed up on the field, or running closer and closer to 4th down opportunities.  
+
+```{r}
+predictions_log = predict(mod1, type = "response")
+```
+
+```{r}
+pbpfull = pbpfull %>% mutate(problog = predictions_log) %>%
+mutate(prob_home_log = ifelse(posteam == home_team, problog , 1-problog))
+```
+
+```{r}
+#esquisser()
+ggplot(pbpfull) +
+ aes(x = prob_home_log) +
+ geom_histogram(bins = 30L, fill = "#0c4c8a") +
+ theme_minimal()
+```
+
+This distribution of "prob_home_log" looks to be a bit bimodal with either much higher tails of win or loss probabilities rather than 50/50 chances.  
+
+```{r}
+#esquisser()
+ggplot(pbpfull) +
+ aes(x = problog, y = score_differential) +
+ geom_point(size = 1L, colour = "#0c4c8a") +
+ theme_minimal()
+```
+This comparison chart of win probability of the team in possession to score differential aligns with what I would imagine. The better a teams score differential or the more lead they have, the higher probability that the team with possession will win as they are most likely running out the clock. The same works in opposite direction because the more behind a team is, the less possession they may have since they are trying to score quickly and not run out the clock.  
+
+```{r echo=FALSE}
+vertical.lines = c(900, 1800, 2700, 3600)
+pbpfull %>% filter(game_id == "2019_01_HOU_NO") %>%
+ggplot(aes(x=game_seconds_remaining,y=prob_home_log)) +
+geom_line(size = 1) +
+theme_bw() +
+scale_x_reverse(breaks=seq(0,3600,by=450)) +
+ylim(0,1) +
+xlab("Game Time Remaining (seconds)") +
+ylab("Home Team Win Probability") +
+geom_vline(xintercept = vertical.lines, color = "red")
+```
+
+ESPN's chart ratio not only measures the game time, but also highlights specific plays that may increase or decrease probabilities. Our win probability model only includes the Saint's win probability. While we can assume the inverse probability would be the Texans, it is much more visually appealing for a viewer to see both ends of the spectrum. The dip at the 36 second mark when Houston lead seemed a bit less drastic in our chart however which proves to be okay since realistically the Saint's actually still had a decent shot at driving down the field and kicking a field goal even with that amount of time remaining.  
+
+```{r echo=FALSE}
+gameid = "2019_01_HOU_NO"
+homeid = pbpfull %>% filter(game_id == gameid) %>% select(home_team) %>% distinct()
+awayid = pbpfull %>% filter(game_id == gameid) %>% select(away_team) %>% distinct()
+vertical.lines = c(900, 1800, 2700, 3600)
+pbpfull %>% filter(game_id == gameid) %>%
+ggplot(aes(x=game_seconds_remaining,y=prob_home_log)) +
+geom_line(size = 1) +
+theme_bw() +
+scale_x_reverse(breaks=seq(0,3600,by=450)) +
+ylim(0,1) +
+xlab("Game Time Remaining (seconds)") +
+ylab("Home Team Win Probability") +
+geom_vline(xintercept = vertical.lines, color = "red") +
+annotate("label", x = 3500, y = .95, label = paste0(homeid$home_team)) +
+annotate("label", x = 3500, y = .05, label = paste0(awayid$away_team))
+```
+
+```{r include=FALSE}
+#table(pbpfull$game_id)
+```
+
+```{r echo=FALSE}
+gameid = "2019_21_SF_KC"
+homeid = pbpfull %>% filter(game_id == gameid) %>% select(home_team) %>% distinct()
+awayid = pbpfull %>% filter(game_id == gameid) %>% select(away_team) %>% distinct()
+vertical.lines = c(900, 1800, 2700, 3600)
+pbpfull %>% filter(game_id == gameid) %>%
+ggplot(aes(x=game_seconds_remaining,y=prob_home_log)) +
+geom_line(size = 1) +
+theme_bw() +
+scale_x_reverse(breaks=seq(0,3600,by=450)) +
+ylim(0,1) +
+xlab("Game Time Remaining (seconds)") +
+ylab("Home Team Win Probability") +
+geom_vline(xintercept = vertical.lines, color = "red") +
+annotate("label", x = 3500, y = .95, label = paste0(homeid$home_team)) +
+annotate("label", x = 3500, y = .05, label = paste0(awayid$away_team))
+```
+
+As a 49ers fan, I am regrettably taking a look back at Super Bowl LIV in 2019 against the Kansas City Chiefs. Our created chart does show a glimmer of hope in the 1st quarter with higher 49ers probability although the ESPN chart does not show San Francisco with a higher probability of winning until the 3rd quarter. ESPN's chart looks to sync up with ours from that point onward as the 49ers had higher probability of winning until a steep decline at roughly 5 minutes left when Mahomes gets the ball down by 3 points. Then KC had higher probability the rest of the game once they scored a touchdown to go up 24-20 with 2 minutes and 44 seconds left in the game.Both charts definitely tell the game story but I do enjoy the additional vertical lines separating out quarters as we see the 49ers leading win probability quarters one and four, while the Chiefs led in probability for quarter two and then of course the most important time in the game which was the last several minutes and end.  
+
+```{r include=FALSE}
+gameid = "2019_01_HOU_NO"
+homeid = pbpfull %>% filter(game_id == gameid) %>% select(home_team) %>% distinct()
+awayid = pbpfull %>% filter(game_id == gameid) %>% select(away_team) %>% distinct()
+```
+
+```{r echo=FALSE}
+vertical.lines = c(900, 1800, 2700, 3600)
+pbpfull %>% filter(game_id == "2019_01_HOU_NO") %>%
+ggplot(aes(x=game_seconds_remaining,y=prob_home_log)) +
+geom_rect(aes(xmin=0, xmax=3600, ymin=0.5, ymax=1), fill = "#D3BC8D", alpha = 1) + #home team color code
+geom_rect(aes(xmin=0, xmax=3600, ymin=0, ymax=0.5), fill = "#A71930", alpha = 1) + #away team color code
+geom_line(size = 1) +
+theme_bw() +
+scale_x_reverse(breaks=seq(0,3600,by=450)) +
+ylim(0,1) +
+xlab("Game Time Remaining (seconds)") +
+ylab("Home Team Win Probability") +
+geom_vline(xintercept = vertical.lines, color = "red") +
+annotate("label", x = 3500, y = .95, label = paste0(homeid$home_team)) +
+annotate("label", x = 3500, y = .05, label = paste0(awayid$away_team))
+```
+
+```{r include=FALSE}
+gameid = "2019_21_SF_KC"
+homeid = pbpfull %>% filter(game_id == gameid) %>% select(home_team) %>% distinct()
+awayid = pbpfull %>% filter(game_id == gameid) %>% select(away_team) %>% distinct()
+```
+
+```{r echo=FALSE}
+vertical.lines = c(900, 1800, 2700, 3600)
+pbpfull %>% filter(game_id == "2019_21_SF_KC") %>%
+ggplot(aes(x=game_seconds_remaining,y=prob_home_log)) +
+geom_rect(aes(xmin=0, xmax=3600, ymin=0.5, ymax=1), fill = "#E31837", alpha = 1) + #home team color code
+geom_rect(aes(xmin=0, xmax=3600, ymin=0, ymax=0.5), fill = "#B3995D", alpha = 1) + #away team color code
+geom_line(size = 1) +
+theme_bw() +
+scale_x_reverse(breaks=seq(0,3600,by=450)) +
+ylim(0,1) +
+xlab("Game Time Remaining (seconds)") +
+ylab("Home Team Win Probability") +
+geom_vline(xintercept = vertical.lines, color = "red") +
+annotate("label", x = 3500, y = .95, label = paste0(homeid$home_team)) +
+annotate("label", x = 3500, y = .05, label = paste0(awayid$away_team))
+```

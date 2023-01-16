@@ -1,0 +1,212 @@
+---
+title: "NHL Contracts"
+author: "Engel, Alec"
+date: "8/10/2021"
+output: word_document
+---
+
+```{r include=FALSE}
+library(esquisse)
+library(tidyverse)
+library(reactable)
+library(ggcorrplot)
+library(gridExtra)
+library(formattable)
+options(warn = -1)
+```
+
+```{r include=FALSE}
+players <- read_csv("~/The Dub/BAN 592 - Sports Analytics/Project/Report Generator - PuckPedia.csv")
+```
+
+```{r}
+team_colors = c(ANA = '#F47A38', ARI = '#8C2633', BOS = '#FFB81C', BUF = '#002654',
+CAR = '#CC0000', CBJ = '#002654', CGY = '#F1BE48', CHI = '#CF0A2C',
+COL = '#6F263D', DAL = '#006847', DET = '#CE1126', EDM = '#041E42',
+FLA = '#041E42', L.A = '#111111', MIN = '#154734', MTL = '#AF1E2D',
+N.J = '#CE1126', NSH = '#FFB81C', NYI = '#00539B', NYR = '#0038A8',
+OTT = '#C2912C', PHI = '#F74902', PIT = '#FCB514', S.J = '#006D75',
+STL = '#002F87', T.B = '#002868', TOR = '#00205B', VAN = '#00205B',
+VGK = '#B4975A', WPG = '#041E42', WSH = '#041E42')
+```
+
+```{r}
+positionmoney <- players %>% group_by(Pos) %>%
+  summarise(NetSalary = mean(Salary)) %>%
+  arrange(desc(NetSalary))
+positionmoney$NetSalary <- currency(positionmoney$NetSalary, digits=0L)
+positionmoney <- rename(positionmoney,Position=Pos,AverageSalary=NetSalary)
+positionmoney
+```
+
+```{r}
+agemoney <- players %>% group_by(Age) %>%
+  summarise(PlayerAge = sum(Salary)) %>%
+  arrange(desc(PlayerAge))
+agemoney$PlayerAge <- currency(agemoney$PlayerAge, digits=0L)
+agemoney <- rename(agemoney,TotalSalary=PlayerAge)
+agemoney <- head(agemoney,10)
+agemoney
+agemoney <- agemoney %>% arrange(TotalSalary)
+agemoney
+```
+
+```{r}
+topmoney <- players %>% select(Name,Pos,Age,Team,Salary) %>% arrange(desc(Salary))
+topmoney$Salary <- currency(topmoney$Salary, digits=0L)
+topmoney <- head(topmoney,50)
+topmoney
+
+topmoney %>%
+ filter(!(Salary %in% c("$15,900,000", "$15,000,000", "$14,000,000", 
+"$13,000,000", "$12,000,000", "$11,750,000", "$10,570,000", "$10,000,000", "$9,600,000", 
+"$9,500,000", "$9,000,000", "$8,000,000", "$7,500,000", "$7,250,000", "$7,200,000", 
+"$7,000,000")) & !is.na(Salary)) %>%
+ ggplot() +
+ aes(x = Age, y = Salary, Color=Team) +
+ geom_point(aes(colour = Team)) + scale_fill_manual(values=team_colors) +
+   scale_color_manual(values = team_colors) +
+   theme_minimal() +
+ theme(axis.text.x = element_text(angle = 90)) + 
+ labs(title = "50 Highest Paid") +
+ facet_wrap(vars(Pos)) +
+    theme(legend.position = "none")
+```
+
+```{r}
+ggplot(players) +
+ aes(x = Age, y = Salary, color = Team) + 
+ geom_point(size = 1L) + 
+ scale_color_manual(values = team_colors) +
+ theme_minimal() +
+ facet_wrap(vars(Pos)) +
+   labs(title = "Salaries By Position") +
+ ylim(700000L, 16000000L) +
+      theme(legend.position = "none")
+```
+
+```{r}
+ggplot(players) +
+ aes(x = Team, y = Salary) +
+ geom_boxplot(aes(fill = Team,color=Team)) + scale_fill_manual(values=team_colors) + scale_color_manual(values = team_colors) +
+   labs(title = "Team Salary Distribution") +
+  theme_minimal() +
+theme(axis.text.x = element_text(angle = 90)) +
+  theme(legend.position = "none") 
+```
+
+```{r}
+ggplot(players) +
+ aes(x = `CF%`, y = Salary, colour = `FF%`) +
+ geom_point(size = 3L) +
+ scale_color_gradient() +
+ theme_minimal()
+```
+
+```{r}
+plot1 <- ggplot(players) +
+ aes(x = Team, y = `CF%`) +
+ geom_boxplot(aes(fill = Team,color=Team)) + scale_fill_manual(values=team_colors) + scale_color_manual(values = team_colors) +
+ labs(title = "Team Corsi %") +
+ theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90)) + 
+  theme(legend.position = "none")
+plot2 <- ggplot(players) +
+ aes(x = Team, y = `HDCF%`) +
+ geom_boxplot(aes(fill = Team,color=Team)) + scale_fill_manual(values=team_colors) + scale_color_manual(values = team_colors) +
+ labs(title = "Team High Danger Chances For %") +
+ theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90)) + 
+  theme(legend.position = "none")
+plot3 <- ggplot(players) +
+ aes(x = Team, y = `FF%`) +
+ geom_boxplot(aes(fill = Team,color=Team)) + scale_fill_manual(values=team_colors) + scale_color_manual(values = team_colors) +
+ labs(title = "Team Fenwick For %") +
+ theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90)) + 
+  theme(legend.position = "none")
+plot4 <- ggplot(players) +
+ aes(x = Team, y = `PDO`) +
+ geom_boxplot(aes(fill = Team,color=Team)) + scale_fill_manual(values=team_colors) + scale_color_manual(values = team_colors) +
+ labs(title = "Team PDO") +
+ theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90)) + 
+  theme(legend.position = "none")
+plot5 <- ggplot(players) +
+ aes(x = Team, y = `SCF%`) +
+ geom_boxplot(aes(fill = Team,color=Team)) + scale_fill_manual(values=team_colors) + scale_color_manual(values = team_colors) +
+ labs(title = "Team Scoring Chances For %") +
+ theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90)) + 
+  theme(legend.position = "none")
+plot1
+plot2
+plot3
+plot4
+plot5
+
+
+
+
+
+
+#divide up by top and bottom players for salaries and corsi?
+grid.arrange(plot1,plot3,plot5,plot2,plot4,nrow=5,top="Advanced Team Stats")
+```
+
+
+
+```{r}
+playermodel <- players %>%
+  select("G","A","PTS","+/-","PPG","PPP","5v5 TOI","PTS/60","PDO","CF%", "FF%","SCF%","HDCF%","Salary")
+corr <- round(cor(playermodel),2)
+head(corr[,1:8])
+ggcorrplot(corr, hc.order = TRUE, type = "lower", lab = TRUE)
+
+advstatmodel <- players %>%
+  select("PDO","CF%", "FF%","SCF%","HDCF%","Salary")
+corr2 <- round(cor(advstatmodel),2)
+head(corr[,1:6])
+ggcorrplot(corr2, hc.order = TRUE, type = "lower", lab = TRUE)
+```
+
+```{r}
+G <- qplot(G,Salary,data = playermodel)
+A <- qplot(A,Salary, data = playermodel)
+PTS <- qplot(PTS,Salary, data = playermodel)
+names(playermodel)[names(playermodel) == "+/-"] <- "PlusMinus"
+PlusMinus <- qplot(PlusMinus,Salary, data = playermodel)
+PPG <- qplot(PPG,Salary, data = playermodel)
+PPP <- qplot(PPP,Salary, data = playermodel)
+
+names(playermodel)[names(playermodel) == "PTS/60"] <- "PointsPer60"
+PointsPer60 <- qplot(PointsPer60,Salary, data = playermodel)
+names(playermodel)[names(playermodel) == "5v5 TOI"] <- "FvFTOI"
+FvFTOI <- qplot(FvFTOI,Salary,data = playermodel)
+PDO <- qplot(PDO,Salary,data = playermodel)
+names(playermodel)[names(playermodel) == "CF%"] <- "CorsiPercent"
+CorsiPercent <- qplot(CorsiPercent,Salary,data = playermodel)
+names(playermodel)[names(playermodel) == "FF%"] <- "FenwickPercent"
+FenwickPercent <- qplot(FenwickPercent,Salary,data = playermodel)
+names(playermodel)[names(playermodel) == "SCF%"] <- "SCFPercent"
+SCFPercent <- qplot(SCFPercent,Salary,data = playermodel)
+names(playermodel)[names(playermodel) == "HDCF%"] <- "HDCFPercent"
+HDCFPercent <- qplot(HDCFPercent,Salary,data = playermodel)
+
+grid.arrange(G,A,PTS,PlusMinus,PPG,PPP,nrow=2,top="Stats")
+grid.arrange(PointsPer60,FvFTOI,PDO,nrow=2,top="Enhanced Stats")
+grid.arrange(CorsiPercent,FenwickPercent,SCFPercent,HDCFPercent,nrow=2,top="Advanced Stats")
+```
+
+
+```{r}
+model1 = lm(Salary ~ G+A+PlusMinus+PointsPer60,playermodel)
+model2 = lm(Salary ~ PointsPer60+FvFTOI+PDO,playermodel)
+model3 = lm(Salary ~ CorsiPercent+FenwickPercent+SCFPercent+HDCFPercent,playermodel)
+
+summary(model1)
+summary(model2)
+summary(model3)
+```
+
+

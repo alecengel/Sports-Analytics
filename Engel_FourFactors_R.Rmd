@@ -1,0 +1,70 @@
+---
+title: "Four Factors"
+author: "Engel, Alec"
+date: "7/18/2021"
+output: word_document
+---
+```{r include=FALSE}
+library(esquisse)
+library(tidyverse)
+library(ggcorrplot)
+library(gridExtra)
+BasketballRefFourFactors <- read_csv("~/The Dub/BAN 592 - Sports Analytics/Module 3/BasketballRefFourFactors.csv")
+```
+
+```{r}
+BasketballRefFourFactors = BasketballRefFourFactors %>% filter(!grepl('League Average', Team))
+```
+This dataset represents the 2018-19 NBA season's team summary statistics. We can see individual on court team statistics that include wins and losses along with offensive and defensive team rating stats. These statistics include free throw rates, rebounding, scoring, and turnovers.We can also see a team's average age and it's arena attendance figures throughout the season. 
+
+```{r echo=FALSE}
+FourFactors <- BasketballRefFourFactors %>%
+  select("OeFGPct","OTOVPct","ORBPct","OFT/FGA","DeFGPct","DTOVPct","DRBPct","DFT/FGA")
+corr <- round(cor(FourFactors),2)
+#head(corr[,1:8])
+ggcorrplot(corr, hc.order = TRUE, type = "lower", lab = TRUE)
+```
+
+  Yes, based on this 2018-19 NBA correlation chart, the four factors are largely not correlated to each other. There are some small negative correlations between defensive rebounding percentage tied to defensive field goal percentage and defensive free throw ratings. This means that if a team gives up a high shooting percentage and lot free throws and field goal attempts, they are more likely to be a poor rebounding team. It makes sense because a defense may give up some easy layups, dunks or fouls after losing a defensive rebound. I can also see a somewhat small negative correlation between offensive field goal percentage and defensive field goal percentage as well as a somewhat small positive correlation between offensive turnover percentage and defensive free throw ratings. These both make sense because as good shooting teams make more shots, their defensive performance may struggle due to pace of play or a higher overall game score and teams with higher rate of committing offensive turnovers would give up more fast break points or opportunities for quick fouls leading to a worsening defensive free throw rate. Overall though, there is very minimal correlation among the "Four Factors".  
+
+```{r echo=FALSE}
+FourFactorsWins <- BasketballRefFourFactors %>%
+  select("OeFGPct","OTOVPct","ORBPct","OFT/FGA","DeFGPct","DTOVPct","DRBPct","DFT/FGA","W","MOV")
+corr2 <- round(cor(FourFactorsWins),2)
+#head(corr2[,1:10])
+ggcorrplot(corr2, hc.order = TRUE, type = "lower", lab = TRUE)
+```
+
+  When plotting correlation of Wins and Margin of Victory against the Four Factors, we can actually tie several of them to help strongly predict results. Wins shows a strong positive correlation with obviously margin of victory and offensive field goal percentage as well as negative correlation with defensive field goal percentage. I can also see margin of victory having a strong positive correlation with offensive field goal percentage and negative correlation with defensive field goal percentage. Both of course makes sense because the more points a team scores and the less points they give up, the higher probability of that team winning is and also the higher margin of victory they may have. Other correlations of note are offensive turnover percentage increases leading to less wins and teams with higher defensive rebounding percentages produce more victories.  
+
+```{r echo=FALSE}
+OeFGPct <- qplot(OeFGPct,W,data = FourFactorsWins)
+OTOVPct <- qplot(OTOVPct,W, data = FourFactorsWins)
+ORBPct <- qplot(ORBPct,W, data = FourFactorsWins)
+names(FourFactorsWins)[names(FourFactorsWins) == "OFT/FGA"] <- "OFTFGA"
+OFTFGA <- qplot(OFTFGA,W, data = FourFactorsWins)
+
+DeFGPct <- qplot(DeFGPct,W,data = FourFactorsWins)
+DTOVPct <- qplot(DTOVPct,W,data = FourFactorsWins)
+DRBPct <- qplot(DRBPct,W,data = FourFactorsWins)
+names(FourFactorsWins)[names(FourFactorsWins) == "DFT/FGA"] <- "DFTFGA"
+DFTFGA <- qplot(DFTFGA,W,data = FourFactorsWins)
+
+grid.arrange(OeFGPct,OTOVPct,ORBPct,OFTFGA,nrow=2,top="Offensve")
+grid.arrange(DeFGPct,DTOVPct,DRBPct,DFTFGA,nrow=2,top="Defensive")
+```
+
+  I can see similar relationships here as were shown with the previous correlation chart of our Four Factors with wins. Offensively, the strongest correlations we can view are strong offensive field goal percentages which help produce more wins. In particular, field goal percentages above 53% typically generated very close to if not more than 50 team wins. Defensively, there is a strong negative correlation tied to wins and defensive field goal percentage as well as a moderately positive relationship showing wins and defensive rebound percentage. So if a team's defensive field goal percentage was below 53% and their defensive rebounding percentage was above 78%, they were more likely to win more than 40 games.   
+
+```{r}
+model1 = lm(W ~ OeFGPct+OTOVPct+ORBPct+OFTFGA+DeFGPct+DTOVPct+DRBPct+DFTFGA,FourFactorsWins)
+```
+
+```{r echo=FALSE}
+summary(model1)
+```
+
+  Positive contributors to wins are offensive field goal percentage, offensive rebounding percentage, offensive free throw rating, defensive turnover percentage, defensive rebounding percentage and defensive free throw rating. Negative contributions to wins are represented by offensive turnover percentage and defensive field goal percentage. All variables are statistically significant with regards to wins except for defensive free throw rating. Our adjusted R-squared value is above 94%  which means that our model does a good job at explaining the variance in the wins variable.  
+
+  I would agree with Dean Oliver's formula for winning a game on all percentages except for rebounding and free throw rate. I think the league has changed a bit in that aspect and this formula should be amended to match that. We now have more meaningful free throws to close out games and I believe that more fouls are called in today's day in age which places additional emphasis on free throw rate. Although defensively, free throw rates are statistically insignificant, we see this being used as a new tool offensively to generate more wins. We also have players in the game that seek fouls on particular shots such as James Harden who drives to the basket looking for a foul call. The rules have also been tweaked a bit to call more fouls on three point shots which are extremely valuable. Jump shooters are now fouled if they aren't given space by their defender to land after a shot and we see some players taking advantage of that and seeking contact to draw a foul by jumping towards a defender. In this sense, I would change free throw rate to 20% and bump down rebounding percentage to 15% as we can also see in our summary that rebounding percentages have the smallest contributions to wins while offensive free throw rates have the third strongest contribution number to producing wins.  
+
